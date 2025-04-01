@@ -36,6 +36,8 @@ const fetchAndInsertSalesData = async (req, res) => {
       Matkl: String(entry.Matkl),
       PlannedOrder: convertToDecimal(entry.PlannedOrder),
       TotalInvoice: convertToDecimal(entry.TotalInvoice),
+      Wgbez: String(entry.Wgbez),
+      Bztxt: String(entry.Bztxt)
     }));
 
     console.log("📌 Final Data Before Processing:", JSON.stringify(formattedData, null, 2));

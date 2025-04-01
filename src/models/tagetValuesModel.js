@@ -24,16 +24,18 @@ class SalesModel {
             .input("Matkl", sql.VarChar, item.Matkl)
             .input("PlannedOrder", sql.Decimal(10, 2), parseFloat(item.PlannedOrder) || 0.0)
             .input("TotalInvoice", sql.Decimal(10, 2), parseFloat(item.TotalInvoice) || 0.0)
+            .input("Wgbez", sql.VarChar, item.Wgbez || "UNKNOWN") // Default value if missing
+            .input("Bztxt", sql.VarChar, item.Bztxt || "UNKNOWN") 
             .query(`
               MERGE INTO Taget_ValuesSet AS target
-              USING (SELECT @Gjahr AS Gjahr, @MonthD AS MonthD, @Bzirk AS Bzirk, @Matkl AS Matkl) AS source
+              USING (SELECT @Gjahr AS Gjahr, @MonthD AS MonthD, @Bzirk AS Bzirk, @Matkl AS Matkl, @Bztxt AS Bztxt) AS source
               ON target.Gjahr = source.Gjahr AND target.MonthD = source.MonthD 
                 AND target.Bzirk = source.Bzirk AND target.Matkl = source.Matkl
               WHEN MATCHED THEN 
-                UPDATE SET PlannedOrder = @PlannedOrder, TotalInvoice = @TotalInvoice
+                UPDATE SET PlannedOrder = @PlannedOrder, TotalInvoice = @TotalInvoice, Wgbez = @Wgbez, Bztxt = @Bztxt
               WHEN NOT MATCHED THEN 
-                INSERT (Gjahr, MonthD, Bzirk, Matkl, PlannedOrder, TotalInvoice)
-                VALUES (@Gjahr, @MonthD, @Bzirk, @Matkl, @PlannedOrder, @TotalInvoice);
+                INSERT (Gjahr, MonthD, Bzirk, Matkl, PlannedOrder, TotalInvoice, Wgbez, Bztxt)
+                VALUES (@Gjahr, @MonthD, @Bzirk, @Matkl, @PlannedOrder, @TotalInvoice, @Wgbez, @Bztxt);
             `);
 
           console.log(`✅ Processed: Gjahr=${item.Gjahr}, MonthD=${item.MonthD}`);

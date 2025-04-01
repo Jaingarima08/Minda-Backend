@@ -79,6 +79,8 @@ const fetchAndStoreSalesOrders = async (req, res) => {
           Matnr: String(order.Matnr || ""),
           Matkl: String(order.Matkl || ""),
           Wgbez: String(order.Wgbez || ""),
+          Bzirk: String(order.Bzirk || ""),
+          Bztxt: String(order.Bztxt || "")
         };
       } catch (err) {
         console.error(`❌ Error processing sales order ${order.Vbeln}:`, err.message);

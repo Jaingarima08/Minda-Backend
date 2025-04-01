@@ -11,16 +11,6 @@ const convertSAPDateTime = (sapDate) => {
   return new Date(timestamp).toISOString().replace("T", " ").split(".")[0];
 };
 
-// const convertSAPDate = (sapDate) => {
-//   if (!sapDate || !sapDate.startsWith("/Date(")) {
-//     // Return a default date string if no date is provided
-//     return new Date('1900-01-01T00:00:00');
-//   }
-//   const timestamp = parseInt(sapDate.match(/\d+/)[0], 10);
-//   return new Date(timestamp);
-// };
-
-
 // Convert string to decimal safely
 const convertToDecimal = (value) => {
   if (!value || isNaN(value)) return 0.00;
@@ -41,13 +31,15 @@ const fetchSAPSalesInvoices = async () => {
       responseType: "json",
     });
 
-    if (!response.data || !response.data.d || !Array.isArray(response.data.d.results)) {
-      throw new Error("Invalid API response format");
+    if (!response.data) {
+      console.warn("⚠️ Received empty response from API");
+      throw new Error("Empty response from API");
     }
 
-    return response.data.d.results;
+    console.log("✅ API Response Received. Length:", JSON.stringify(response.data).length);
+    return response.data;
   } catch (error) {
-    console.error("❌ Error fetching SAP sales invoice data:", error.message);
+    console.error("❌ Error fetching SAP customer data:", error.message);
     throw new Error(`SAP API Error: ${error.message}`);
   }
 };
@@ -77,6 +69,12 @@ const fetchAndStoreSalesInvoices = async (req, res) => {
       Gjahr: String(invoice.Gjahr || ""),
       Fkdat: convertSAPDateTime(invoice.Fkdat),
       Aubel: String(invoice.Aubel || ""),
+      Vtweg: String(invoice.Vtweg || ""),
+      Bzirk: String(invoice.Bzirk || ""),
+      Spart: String(invoice.Spart || ""),
+      Aupos: String(invoice.Aupos || ""),
+      Werks: String(invoice.Werks || ""),
+      Kunag: String(invoice.Kunag || ""),
     }));
 
     console.log("📌 Final Data Before Processing:", JSON.stringify(processedInvoices, null, 2));

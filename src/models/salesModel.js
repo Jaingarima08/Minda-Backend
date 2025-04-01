@@ -17,51 +17,32 @@ const insertOrUpdateSalesData = async (salesData) => {
       try {
         console.log("🔍 Processing Data:", item);
 
-        // Check if record exists
-        const existingRecord = await transaction.request()
+        // Use MERGE statement to prevent duplicates and handle insert/update efficiently
+        await transaction.request()
           .input("Gjahr", sql.VarChar, item.Gjahr)
+          .input("MonthD", sql.VarChar, item.MonthD)
+          .input("Lzone", sql.VarChar, item.Lzone)
           .input("ProdCatgry", sql.VarChar, item.ProdCatgry)
+          .input("PlanOrderQuantity", sql.Decimal(10, 2), parseFloat(item.PlanOrderQuantity) || 0.0)
+          .input("Budget", sql.Decimal(15, 2), parseFloat(item.Budget) || 0.0)
+          .input("Erdat", sql.DateTime, item.Erdat)
+          .input("Ernam", sql.VarChar, item.Ernam)
           .query(`
-            SELECT 1 FROM ZGMB_SALES_TARGT 
-            WHERE Gjahr = @Gjahr AND ProdCatgry = @ProdCatgry
+            MERGE INTO ZGMB_SALES_TARGT AS target
+            USING (SELECT @Gjahr AS Gjahr, @MonthD AS MonthD, @Lzone AS Lzone, @ProdCatgry AS ProdCatgry, 
+                          @PlanOrderQuantity AS PlanOrderQuantity, @Budget AS Budget, 
+                          @Erdat AS Erdat, @Ernam AS Ernam) AS source
+            ON target.Gjahr = source.Gjahr AND target.ProdCatgry = source.ProdCatgry AND target.MonthD = source.MonthD
+            WHEN MATCHED THEN
+              UPDATE SET Lzone = source.Lzone, PlanOrderQuantity = source.PlanOrderQuantity, 
+                         Budget = source.Budget, Erdat = source.Erdat, Ernam = source.Ernam
+            WHEN NOT MATCHED THEN
+              INSERT (Gjahr, MonthD, Lzone, ProdCatgry, PlanOrderQuantity, Budget, Erdat, Ernam) 
+              VALUES (source.Gjahr, source.MonthD, source.Lzone, source.ProdCatgry, 
+                      source.PlanOrderQuantity, source.Budget, source.Erdat, source.Ernam);
           `);
 
-        if (existingRecord.recordset.length > 0) {
-          // Update the existing record
-          await transaction.request()
-            .input("MonthD", sql.VarChar, item.MonthD)
-            .input("Lzone", sql.VarChar, item.Lzone)
-            .input("PlanOrderQuantity", sql.Decimal(10, 2), parseFloat(item.PlanOrderQuantity) || 0.0)
-            .input("Budget", sql.Decimal(15, 2), parseFloat(item.Budget) || 0.0)
-            .input("Erdat", sql.DateTime, item.Erdat)
-            .input("Ernam", sql.VarChar, item.Ernam)
-            .input("Gjahr", sql.VarChar, item.Gjahr)
-            .input("ProdCatgry", sql.VarChar, item.ProdCatgry)
-            .query(`
-              UPDATE ZGMB_SALES_TARGT 
-              SET MonthD = @MonthD, Lzone = @Lzone, PlanOrderQuantity = @PlanOrderQuantity,
-                  Budget = @Budget, Erdat = @Erdat, Ernam = @Ernam
-              WHERE Gjahr = @Gjahr AND ProdCatgry = @ProdCatgry
-            `);
-          console.log(`🔄 Updated: Gjahr=${item.Gjahr}, ProdCatgry=${item.ProdCatgry}`);
-        } else {
-          // Insert new record
-          await transaction.request()
-            .input("Gjahr", sql.VarChar, item.Gjahr)
-            .input("MonthD", sql.VarChar, item.MonthD)
-            .input("Lzone", sql.VarChar, item.Lzone)
-            .input("ProdCatgry", sql.VarChar, item.ProdCatgry)
-            .input("PlanOrderQuantity", sql.Decimal(10, 2), parseFloat(item.PlanOrderQuantity) || 0.0)
-            .input("Budget", sql.Decimal(15, 2), parseFloat(item.Budget) || 0.0)
-            .input("Erdat", sql.DateTime, item.Erdat)
-            .input("Ernam", sql.VarChar, item.Ernam)
-            .query(`
-              INSERT INTO ZGMB_SALES_TARGT 
-              (Gjahr, MonthD, Lzone, ProdCatgry, PlanOrderQuantity, Budget, Erdat, Ernam) 
-              VALUES (@Gjahr, @MonthD, @Lzone, @ProdCatgry, @PlanOrderQuantity, @Budget, @Erdat, @Ernam)
-            `);
-          console.log(`✅ Inserted: Gjahr=${item.Gjahr}, ProdCatgry=${item.ProdCatgry}`);
-        }
+        console.log(`✅ Processed: Gjahr=${item.Gjahr}, ProdCatgry=${item.ProdCatgry}`);
       } catch (err) {
         console.error(`❌ Failed to process row for ProdCatgry=${item.ProdCatgry}:`, err.message);
       }

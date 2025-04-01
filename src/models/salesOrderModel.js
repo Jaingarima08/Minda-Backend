@@ -27,8 +27,10 @@ const insertOrUpdateSalesOrders = async (salesOrders) => {
           .input("Matnr", sql.VarChar, order.Matnr)
           .input("Matkl", sql.VarChar, order.Matkl)
           .input("Wgbez", sql.VarChar, order.Wgbez)
-          .input("Spart", sql.VarChar, order.Spart)       // New field
-          .input("Vtext", sql.VarChar, order.Vtext)         // New field
+          .input("Spart", sql.VarChar, order.Spart)      
+          .input("Vtext", sql.VarChar, order.Vtext)    
+          .input("Bzirk", sql.VarChar, order.Bzirk) 
+          .input("Bztxt", sql.VarChar, order.Bztxt)             
           .query(`
             MERGE INTO SalesOrderInfo AS target
             USING (SELECT @Vbeln AS Vbeln, @Posnr AS Posnr) AS source
@@ -45,10 +47,12 @@ const insertOrUpdateSalesOrders = async (salesOrders) => {
                 Matkl = @Matkl,
                 Wgbez = @Wgbez,
                 Spart = @Spart,
-                Vtext = @Vtext
+                Vtext = @Vtext,
+                Bzirk = @Bzirk,
+                Bztxt = @Bztxt
             WHEN NOT MATCHED THEN 
-              INSERT (Vbeln, Posnr, Kunnr, Erdat, Auart, Vkorg, Netwr, Waerk, Matnr, Matkl, Wgbez, Spart, Vtext)
-              VALUES (@Vbeln, @Posnr, @Kunnr, @Erdat, @Auart, @Vkorg, @Netwr, @Waerk, @Matnr, @Matkl, @Wgbez, @Spart, @Vtext);
+              INSERT (Vbeln, Posnr, Kunnr, Erdat, Auart, Vkorg, Netwr, Waerk, Matnr, Matkl, Wgbez, Spart, Vtext, Bzirk, Bztxt)
+              VALUES (@Vbeln, @Posnr, @Kunnr, @Erdat, @Auart, @Vkorg, @Netwr, @Waerk, @Matnr, @Matkl, @Wgbez, @Spart, @Vtext, @Bzirk, @Bztxt);
           `);
 
         console.log(`✅ Processed: Vbeln=${order.Vbeln}`);
