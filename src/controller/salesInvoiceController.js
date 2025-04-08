@@ -36,10 +36,23 @@ const fetchSAPSalesInvoices = async () => {
       throw new Error("Empty response from API");
     }
 
+    // Debugging: Check the API response structure
     console.log("✅ API Response Received. Length:", JSON.stringify(response.data).length);
-    return response.data;
+    console.log("📌 API Response Data:", JSON.stringify(response.data, null, 2));
+
+    // Validate API response format
+    if (!response.data.d || !Array.isArray(response.data.d.results)) {
+      console.error("❌ API Response Format Incorrect:", JSON.stringify(response.data).slice(0, 200) + "...");
+      throw new Error("Invalid data format received from SAP");
+    }
+
+    const salesInvoices = response.data.d.results || [];
+
+    console.log(`📦 Received ${salesInvoices.length} sales invoices`);
+    return salesInvoices;
+
   } catch (error) {
-    console.error("❌ Error fetching SAP customer data:", error.message);
+    console.error("❌ Error fetching SAP sales invoice data:", error.message);
     throw new Error(`SAP API Error: ${error.message}`);
   }
 };
@@ -50,56 +63,68 @@ const fetchAndStoreSalesInvoices = async (req, res) => {
     console.log("🚀 Starting Sales Invoice Data Sync...");
     const salesInvoices = await fetchSAPSalesInvoices();
 
-    if (!salesInvoices || salesInvoices.length === 0) {
-      return res.status(400).json({ message: "No sales invoice data found in SAP" });
+    if (!Array.isArray(salesInvoices) || salesInvoices.length === 0) {
+      console.warn("⚠️ No valid sales invoice data received.");
+      if (res) return res.status(400).json({ message: "No sales invoice data found in SAP" });
+      return;
     }
 
-    console.log(`📦 Received ${salesInvoices.length} sales invoices`);
+    console.log(`📦 Processing ${salesInvoices.length} sales invoices...`);
 
-    const processedInvoices = salesInvoices.map((invoice) => ({
-      Vbeln: String(invoice.Vbeln || ""),
-      Posnr: String(invoice.Posnr || ""),
-      Netwr: convertToDecimal(invoice.Netwr),
-      Matnr: String(invoice.Matnr || ""),
-      Matkl: String(invoice.Matkl || ""),
-      Fkart: String(invoice.Fkart || ""),
-      Fktyp: String(invoice.Fktyp || ""),
-      Vkorg: String(invoice.Vkorg || ""),
-      Waerk: String(invoice.Waerk || ""),
-      Gjahr: String(invoice.Gjahr || ""),
-      Fkdat: convertSAPDateTime(invoice.Fkdat),
-      Aubel: String(invoice.Aubel || ""),
-      Vtweg: String(invoice.Vtweg || ""),
-      Bzirk: String(invoice.Bzirk || ""),
-      Spart: String(invoice.Spart || ""),
-      Aupos: String(invoice.Aupos || ""),
-      Werks: String(invoice.Werks || ""),
-      Kunag: String(invoice.Kunag || ""),
-    }));
+    const processedInvoices = salesInvoices.map((invoice, index) => {
+      if (!invoice || typeof invoice !== "object") {
+        console.error(`❌ Skipping invalid invoice at index ${index}:`, invoice);
+        return null;
+      }
 
-    console.log("📌 Final Data Before Processing:", JSON.stringify(processedInvoices, null, 2));
+      return {
+        Vbeln: String(invoice?.Vbeln || ""),
+        Posnr: String(invoice?.Posnr || ""),
+        Netwr: convertToDecimal(invoice?.Netwr),
+        Matnr: String(invoice?.Matnr || ""),
+        Matkl: String(invoice?.Matkl || ""),
+        Fkart: String(invoice?.Fkart || ""),
+        Fktyp: String(invoice?.Fktyp || ""),
+        Vkorg: String(invoice?.Vkorg || ""),
+        Waerk: String(invoice?.Waerk || ""),
+        Gjahr: String(invoice?.Gjahr || ""),
+        Fkdat: convertSAPDateTime(invoice?.Fkdat),
+        Aubel: String(invoice?.Aubel || ""),
+        Vtweg: String(invoice?.Vtweg || ""),
+        Bzirk: String(invoice?.Bzirk || ""),
+        Spart: String(invoice?.Spart || ""),
+        Aupos: String(invoice?.Aupos || ""),
+        Werks: String(invoice?.Werks || ""),
+        Kunag: String(invoice?.Kunag || ""),
+      };
+    }).filter(Boolean); // Remove null entries
+
+    console.log("📌 Final Processed Invoices:", JSON.stringify(processedInvoices, null, 2));
 
     // Insert or Update the sales invoices
     const result = await insertOrUpdateSalesInvoices(processedInvoices);
 
     if (!result || typeof result !== "object" || !result.success) {
-      return res.status(500).json({
-        message: "❌ Error inserting or updating sales invoice data",
-        error: result?.error || "Unexpected database response",
-      });
+      console.error("❌ Error inserting or updating sales invoice data:", result?.error || "Unexpected database response");
+      if (res) return res.status(500).json({ message: "Error inserting or updating sales invoice data", error: result?.error || "Database error" });
+      return;
     }
 
     console.log("✅ Sales Invoice Data Sync Completed Successfully");
-    return res.status(200).json({
-      message: "✅ Sales invoice data synced successfully",
-      insertedRows: result.processedRows.length,
-      updatedRows: result.processedRows.length, // MERGE statement handles both
-      failedRows: result.failedRows.length,
-      errors: result.failedRows,
-    });
+    
+    if (res) {
+      return res.status(200).json({
+        message: "✅ Sales invoice data synced successfully",
+        insertedRows: result.processedRows.length,
+        updatedRows: result.processedRows.length, // MERGE statement handles both
+        failedRows: result.failedRows.length,
+        errors: result.failedRows,
+      });
+    }
+
   } catch (error) {
     console.error("❌ Error syncing sales invoice data:", error.message);
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+    if (res) return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 

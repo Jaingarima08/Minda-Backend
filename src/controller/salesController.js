@@ -29,7 +29,7 @@ const formatProdCatgry = (prodCatgry) => {
 };
 
 // Fetch Data from API and Insert/Update into MSSQL Database
-const fetchAndInsertData = async (req, res) => {
+const fetchSAPSalesData = async (req, res) => {
   try {
     console.log("🔍 Fetching Data from API:", API_URL);
 
@@ -39,16 +39,40 @@ const fetchAndInsertData = async (req, res) => {
         password: process.env.SAP_PASSWORD,
       },
       headers: { Accept: "application/json" },
+      responseType: "json",
     });
 
-    const entries = response.data?.d?.results;
+    if (!response.data) {
+      console.warn(" Received empty response from API");
+      throw new Error("Empty response from API");
+    }
+
+    console.log("API Response Received.Length:", JSON.stringify(response.data).length);
+    console.log("API Response Data:", JSON.stringify(response.data, null, 2));
+    
+    return response.data;
+  } catch (error) {
+    console.error(" Error fetching sales data:", error.message);
+    throw new Error(`SAP API ERROR: ${error.message}`);
+  }
+};
+
+const fetchAndInsertData = async (req, res) => {
+  try {
+    console.log("Starting Sales Data Sync...");
+    const entries = await fetchSAPSalesData();
+
+    // const entries = response.data?.d?.results;
     if (!entries || !Array.isArray(entries)) {
-      console.error("❌ Invalid API response format:", response.data);
+      console.error("❌ Invalid API response format:", response.entries);
       return res.status(400).json({ message: "Invalid API response format" });
     }
 
-    // Transform the data before inserting into MSSQL
-    const salesData = entries.map(entry => ({
+    console.log(` Received ${entries.length} sales data from API`);
+
+    const salesData = entries.map((entry, index) => {
+      console.log(`Processing Sales Data ${index + 1}:`, entry.Gjahr);
+      return {
       Gjahr: String(entry.Gjahr), // Ensure it's a string
       MonthD: String(entry.MonthD),
       Lzone: String(entry.Lzone),
@@ -57,21 +81,33 @@ const fetchAndInsertData = async (req, res) => {
       Budget: convertToDecimal(entry.Budget), // ✅ Convert to DECIMAL(15,2)
       Erdat: convertSAPDateTime(entry.Erdat), // ✅ Convert to DATETIME
       Ernam: String(entry.Ernam), // Ensure string
-    }));
+    };
+    }).filter(Boolean);
 
-    console.log("📌 Final Data Before Insertion:", JSON.stringify(salesData, null, 2)); // Debugging
+    console.log("📌 Final Data Before Insertion:", JSON.stringify(salesData, null, 2));
 
-    // ✅ Insert or Update into MSSQL Database
     const result = await insertOrUpdateSalesData(salesData);
 
-    if (result.success) {
-      return res.status(200).json({ message: "✅ Data inserted/updated successfully" });
-    } else {
-      return res.status(500).json({ message: "❌ Error inserting/updating data", error: result.error });
+    if (!result || typeof result !== "object" || !result.success) {
+      console.error(" Error inserted or updating sales data:", result?.error || "Unexpected database response");
+      if (res) return res.status(500).json({ message: "Error inserting or updating sales data", error: result?.error || "Database error" });
+      return;
+    }
+
+    console.log(" Sales Data Sync Completed Successfully ");
+
+    if (res) {
+      return res.status(200).json({
+        message: "Sales data synced successfully",
+        insertedRows: result.processedRows.length,
+        updatedRows: result.processedRows.length,
+        failedRows: result.failedRows.length,
+        errors: result.failedRows,
+      });
     }
   } catch (error) {
-    console.error("❌ API Fetch Error:", error?.response?.data || error.message);
-    res.status(500).json({ message: "Failed to fetch data from API", error: error?.message });
+    console.error("❌ Error syncing sales data:", error.message);
+    if (res) return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
